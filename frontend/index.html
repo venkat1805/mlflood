@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chennai Flood Risk Map</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .header h1 {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .header p {
+            opacity: 0.9;
+            font-size: 0.9rem;
+        }
+        
+        .container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        #map {
+            flex: 1;
+            height: 100%;
+        }
+        
+        .sidebar {
+            width: 350px;
+            background: #f8f9fa;
+            padding: 1.5rem;
+            overflow-y: auto;
+            box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+        }
+        
+        .sidebar h2 {
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+            color: #333;
+        }
+        
+        .ward-item {
+            background: white;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-left: 4px solid #ddd;
+        }
+        
+        .ward-item:hover {
+            transform: translateX(-2px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .ward-item.low { border-left-color: #28a745; }
+        .ward-item.moderate { border-left-color: #ffc107; }
+        .ward-item.high { border-left-color: #fd7e14; }
+        .ward-item.critical { border-left-color: #dc3545; }
+        
+        .ward-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        
+        .ward-name {
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .risk-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .risk-badge.low { background: #d4edda; color: #155724; }
+        .risk-badge.moderate { background: #fff3cd; color: #856404; }
+        .risk-badge.high { background: #ffeaa7; color: #856404; }
+        .risk-badge.critical { background: #f8d7da; color: #721c24; }
+        
+        .ward-details {
+            font-size: 0.85rem;
+            color: #666;
+        }
+        
+        .ward-details div {
+            margin-top: 0.25rem;
+        }
+        
+        .legend {
+            background: white;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+        
+        .legend h3 {
+            font-size: 0.9rem;
+            margin-bottom: 0.75rem;
+            color: #333;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.5rem;
+            font-size: 0.85rem;
+        }
+        
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            margin-right: 0.5rem;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #666;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 1rem;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #667eea;
+        }
+        
+        .stat-label {
+            font-size: 0.75rem;
+            color: #666;
+            margin-top: 0.25rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🌊 Chennai Flood Risk Map</h1>
+        <p>Real-time flood risk visualization by ward</p>
+    </div>
+    
+    <div class="container">
+        <div id="map"></div>
+        
+        <div class="sidebar">
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-value" id="total-wards">-</div>
+                    <div class="stat-label">Total Wards</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="high-risk">-</div>
+                    <div class="stat-label">High Risk</div>
+                </div>
+            </div>
+            
+            <div class="legend">
+                <h3>Risk Levels</h3>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #28a745;"></div>
+                    <span>Low (0.0 - 0.3)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #ffc107;"></div>
+                    <span>Moderate (0.3 - 0.6)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #fd7e14;"></div>
+                    <span>High (0.6 - 0.8)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #dc3545;"></div>
+                    <span>Critical (0.8 - 1.0)</span>
+                </div>
+            </div>
+            
+            <h2>Wards</h2>
+            <div id="ward-list" class="loading">Loading wards...</div>
+        </div>
+    </div>
+    
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <script>
+        const API_BASE = 'http://127.0.0.1:8000';
+        
+        // Initialize map centered on Chennai
+        const map = L.map('map').setView([13.0827, 80.2707], 11);
+        
+        // Add OpenStreetMap tiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 19
+        }).addTo(map);
+        
+        // Color mapping for risk levels
+        const riskColors = {
+            'low': '#28a745',
+            'moderate': '#ffc107',
+            'high': '#fd7e14',
+            'critical': '#dc3545'
+        };
+        
+        // Fetch ward data and display on map
+        async function loadWardData() {
+            try {
+                const response = await fetch(`${API_BASE}/ward_risk`);
+                const wards = await response.json();
+                
+                // Update stats
+                document.getElementById('total-wards').textContent = wards.length;
+                const highRiskCount = wards.filter(w => w.risk_level === 'high' || w.risk_level === 'critical').length;
+                document.getElementById('high-risk').textContent = highRiskCount;
+                
+                // Display wards on map
+                wards.forEach(ward => {
+                    const color = riskColors[ward.risk_level] || '#666';
+                    
+                    const marker = L.circleMarker([ward.lat, ward.lon], {
+                        radius: 10,
+                        fillColor: color,
+                        color: '#fff',
+                        weight: 2,
+                        opacity: 1,
+                        fillOpacity: 0.8
+                    }).addTo(map);
+                    
+                    marker.bindPopup(`
+                        <strong>${ward.ward_name}</strong><br>
+                        Risk Level: <strong>${ward.risk_level.toUpperCase()}</strong><br>
+                        Risk Score: ${(ward.risk * 100).toFixed(1)}%<br>
+                        Last Updated: ${new Date(ward.last_updated).toLocaleString()}
+                    `);
+                    
+                    // Store ward data in marker
+                    marker.wardData = ward;
+                });
+                
+                // Populate sidebar
+                displayWardList(wards);
+                
+            } catch (error) {
+                console.error('Error loading ward data:', error);
+                document.getElementById('ward-list').innerHTML = 
+                    '<div class="loading">Error loading data. Make sure the API server is running.</div>';
+            }
+        }
+        
+        function displayWardList(wards) {
+            const listContainer = document.getElementById('ward-list');
+            listContainer.innerHTML = '';
+            
+            // Sort by risk score (highest first)
+            const sortedWards = [...wards].sort((a, b) => b.risk - a.risk);
+            
+            sortedWards.forEach(ward => {
+                const item = document.createElement('div');
+                item.className = `ward-item ${ward.risk_level}`;
+                item.innerHTML = `
+                    <div class="ward-header">
+                        <span class="ward-name">${ward.ward_name}</span>
+                        <span class="risk-badge ${ward.risk_level}">${ward.risk_level}</span>
+                    </div>
+                    <div class="ward-details">
+                        <div>Risk Score: <strong>${(ward.risk * 100).toFixed(1)}%</strong></div>
+                        <div>Coordinates: ${ward.lat.toFixed(4)}, ${ward.lon.toFixed(4)}</div>
+                    </div>
+                `;
+                
+                // Click handler to center map on ward
+                item.addEventListener('click', () => {
+                    map.setView([ward.lat, ward.lon], 13);
+                    // Open popup if marker exists
+                    map.eachLayer(layer => {
+                        if (layer.wardData && layer.wardData.ward_id === ward.ward_id) {
+                            layer.openPopup();
+                        }
+                    });
+                });
+                
+                listContainer.appendChild(item);
+            });
+        }
+        
+        // Load data on page load
+        loadWardData();
+        
+        // Refresh data every 5 minutes
+        setInterval(loadWardData, 5 * 60 * 1000);
+    </script>
+</body>
+</html>
+
